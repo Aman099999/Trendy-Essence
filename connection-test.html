@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Connection test | Trendy Essence</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>.t{max-width:640px;margin:2rem auto;padding:0 1.25rem}.t h1{font-family:var(--serif);font-weight:500;color:var(--brown)}
+.t li{margin:.7rem 0;list-style:none;padding:.7rem .9rem;background:var(--white);border-left:4px solid var(--sand)}
+.t li.ok{border-color:#3d7a4a}.t li.bad{border-color:#8b2b2b}.t small{display:block;color:var(--brown)}</style>
+</head>
+<body>
+<div class="t">
+  <a class="logo" href="index.html">Trendy Essence</a>
+  <h1>Database connection test</h1>
+  <p>This checks the website can talk to Supabase. It only reads data and creates nothing.</p>
+  <ul id="out"></ul>
+</div>
+<script src="js/config.js"></script>
+<script>
+(async function () {
+  const out = document.getElementById("out"), cfg = window.TE_CONFIG || {};
+  const line = (ok, title, help) => { const li = document.createElement("li"); li.className = ok ? "ok" : "bad"; li.textContent = (ok ? "PASS: " : "FAIL: ") + title; if (help) { const s = document.createElement("small"); s.textContent = help; li.appendChild(s); } out.appendChild(li); return ok; };
+  if (!line(!!(cfg.supabaseUrl && cfg.supabaseKey), "js/config.js has a URL and a key", "Open js/config.js and paste in your Project URL and publishable key.")) return;
+  const base = cfg.supabaseUrl.replace(/\/+$/, ""), h = {apikey: cfg.supabaseKey, "Content-Type": "application/json"};
+  if (/^eyJ/.test(cfg.supabaseKey)) h.Authorization = "Bearer " + cfg.supabaseKey;
+  async function call(path, opt) { try { const r = await fetch(base + path, Object.assign({headers: h}, opt)); const t = await r.text(); let b = null; try { b = t ? JSON.parse(t) : null; } catch (e) {} return {ok: r.ok, status: r.status, body: b}; } catch (e) { return {ok: false, status: 0, body: null}; } }
+  const c = await call("/rest/v1/categories?select=slug");
+  if (!line(c.ok, "Reached Supabase and read categories" + (c.ok ? " (" + c.body.length + " found)" : ""), c.ok ? (c.body.length >= 6 ? "" : "Expected 6 categories. Did the whole SQL script run?") : "Check the Project URL and key, and that schema.sql ran with no red errors. Status: " + c.status)) return;
+  const p = await call("/rest/v1/products?select=product_code&limit=50");
+  line(p.ok, "Read products" + (p.ok ? " (" + p.body.length + " visible to customers)" : ""), p.ok ? (p.body.length ? "" : "No products yet. That is fine. Add some, or run supabase/sample-products.sql to test.") : "Status: " + p.status);
+  const t = await call("/rest/v1/rpc/track_order", {method: "POST", body: JSON.stringify({p_order_number: "TE-000000-XXXXX", p_phone: "0000000"})});
+  line(t.ok && t.body === null, "Order tracking function exists and safely returns nothing for a fake order", t.ok ? "" : "Status: " + t.status + ". Re-run schema.sql.");
+  const o = await call("/rest/v1/orders?select=id");
+  line(o.ok ? (Array.isArray(o.body) && o.body.length === 0) : (o.status === 401 || o.status === 403), "Customers cannot read orders (privacy check)", o.ok ? "An empty list is correct for visitors. If you see orders listed here, tell me immediately." : "");
+})();
+</script>
+</body>
+</html>
